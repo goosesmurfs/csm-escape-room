@@ -11,7 +11,7 @@ using System.IO;
 /// </summary>
 public class SceneGenerator : EditorWindow
 {
-    [MenuItem("Tools/Generate AWS CCP Scenes")]
+    [MenuItem("Tools/Generate AWS CCP Scenes (3D Escape Room)")]
     public static void GenerateAllScenes()
     {
         if (EditorUtility.DisplayDialog("Generate Scenes",
@@ -42,6 +42,34 @@ public class SceneGenerator : EditorWindow
                 "Build settings configured.\n" +
                 "Ready to build WebGL!",
                 "OK");
+        }
+    }
+
+    [MenuItem("Tools/Generate AWS Study Valley (2.5D Top-Down) ⭐")]
+    public static void Generate2DWorld()
+    {
+        if (EditorUtility.DisplayDialog("Generate 2.5D World",
+            "This will create a beautiful Stardew Valley-style top-down AWS study game!\n\n" +
+            "Includes:\n" +
+            "- Top-down world with 4 themed biomes\n" +
+            "- Interactive NPCs for quizzes\n" +
+            "- Collectible AWS badges\n" +
+            "- Question panel overlay\n\n" +
+            "Continue?",
+            "Yes!", "Cancel"))
+        {
+            CreateScenesFolder();
+            Create2DWorldScene();
+            ConfigureBuildSettings2D();
+
+            EditorUtility.DisplayDialog("Success! 🎉",
+                "AWS Study Valley created successfully!\n\n" +
+                "Created:\n" +
+                "- Assets/Scenes/AWSStudyValley.unity\n\n" +
+                "Press Play to explore your new 2.5D world!\n" +
+                "[WASD] to move\n" +
+                "[E] to interact with NPCs and collectibles",
+                "Awesome!");
         }
     }
 
@@ -626,5 +654,284 @@ public class SceneGenerator : EditorWindow
         rt.anchorMax = new Vector2(0.5f, 0.5f);
 
         return inputObj;
+    }
+
+    // ========== 2.5D TOP-DOWN WORLD GENERATION ==========
+
+    static void Create2DWorldScene()
+    {
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.Empty, NewSceneMode.Single);
+
+        // Create Main Camera for 2D
+        GameObject camera = new GameObject("Main Camera");
+        camera.tag = "MainCamera";
+        Camera cam = camera.AddComponent<Camera>();
+        cam.orthographic = true;
+        cam.orthographicSize = 8f;
+        cam.backgroundColor = new Color(0.2f, 0.3f, 0.2f); // Forest green
+        camera.transform.position = new Vector3(0, 0, -10);
+        camera.AddComponent<AudioListener>();
+
+        // Create Player
+        GameObject player = CreateTopDownPlayer();
+
+        // Create World Manager
+        GameObject worldManagerObj = new GameObject("WorldManager");
+        WorldManager worldManager = worldManagerObj.AddComponent<WorldManager>();
+
+        // Create Ground/Environment
+        Create2DEnvironment();
+
+        // Create NPCs (one for each domain)
+        CreateNPC(ExamDomain.CloudConcepts, new Vector3(-8, 8, 0), "Cloud Expert");
+        CreateNPC(ExamDomain.SecurityAndCompliance, new Vector3(8, 8, 0), "Security Guru");
+        CreateNPC(ExamDomain.Technology, new Vector3(-8, -8, 0), "Tech Wizard");
+        CreateNPC(ExamDomain.BillingAndPricing, new Vector3(8, -8, 0), "Cost Optimizer");
+
+        // Create Collectible Badges (3 per domain = 12 total)
+        // Cloud Concepts area (top-left)
+        Create2DCollectible(ExamDomain.CloudConcepts, new Vector3(-10, 5, 0));
+        Create2DCollectible(ExamDomain.CloudConcepts, new Vector3(-6, 6, 0));
+        Create2DCollectible(ExamDomain.CloudConcepts, new Vector3(-8, 10, 0));
+
+        // Security area (top-right)
+        Create2DCollectible(ExamDomain.SecurityAndCompliance, new Vector3(10, 5, 0));
+        Create2DCollectible(ExamDomain.SecurityAndCompliance, new Vector3(6, 6, 0));
+        Create2DCollectible(ExamDomain.SecurityAndCompliance, new Vector3(8, 10, 0));
+
+        // Technology area (bottom-left)
+        Create2DCollectible(ExamDomain.Technology, new Vector3(-10, -5, 0));
+        Create2DCollectible(ExamDomain.Technology, new Vector3(-6, -6, 0));
+        Create2DCollectible(ExamDomain.Technology, new Vector3(-8, -10, 0));
+
+        // Billing area (bottom-right)
+        Create2DCollectible(ExamDomain.BillingAndPricing, new Vector3(10, -5, 0));
+        Create2DCollectible(ExamDomain.BillingAndPricing, new Vector3(6, -6, 0));
+        Create2DCollectible(ExamDomain.BillingAndPricing, new Vector3(8, -10, 0));
+
+        // Create UI Canvas
+        Create2DWorldUI(worldManager);
+
+        // Create GameManager
+        GameObject gameManagerObj = new GameObject("GameManager");
+        GameManager gm = gameManagerObj.AddComponent<GameManager>();
+
+        // Save scene
+        EditorSceneManager.SaveScene(scene, "Assets/Scenes/AWSStudyValley.unity");
+        Debug.Log("Created AWSStudyValley.unity");
+    }
+
+    static GameObject CreateTopDownPlayer()
+    {
+        GameObject player = new GameObject("Player");
+        player.tag = "Player";
+        player.transform.position = new Vector3(0, 0, 0);
+        player.layer = LayerMask.NameToLayer("Default");
+
+        // Add Rigidbody2D
+        Rigidbody2D rb = player.AddComponent<Rigidbody2D>();
+        rb.gravityScale = 0;
+        rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+
+        // Add CircleCollider2D
+        CircleCollider2D collider = player.AddComponent<CircleCollider2D>();
+        collider.radius = 0.4f;
+
+        // Add SpriteRenderer with simple colored sprite
+        SpriteRenderer sr = player.AddComponent<SpriteRenderer>();
+        sr.sprite = SpriteGenerator.CreateCharacterSprite(new Color(0.2f, 0.6f, 1f)); // Blue player
+        sr.sortingOrder = 10; // Above ground
+
+        // Add TopDownController
+        TopDownController controller = player.AddComponent<TopDownController>();
+        controller.spriteRenderer = sr;
+        controller.moveSpeed = 5f;
+
+        return player;
+    }
+
+    static void Create2DEnvironment()
+    {
+        // Create 4 biome areas using colored quads
+        // Cloud Concepts (top-left) - Sky blue
+        CreateGroundTile("CloudBiome", new Vector3(-8, 8, 0), new Vector2(10, 10), new Color(0.7f, 0.9f, 1f));
+
+        // Security (top-right) - Dark red
+        CreateGroundTile("SecurityBiome", new Vector3(8, 8, 0), new Vector2(10, 10), new Color(0.8f, 0.3f, 0.3f));
+
+        // Technology (bottom-left) - Green
+        CreateGroundTile("TechBiome", new Vector3(-8, -8, 0), new Vector2(10, 10), new Color(0.4f, 0.9f, 0.5f));
+
+        // Billing (bottom-right) - Gold
+        CreateGroundTile("BillingBiome", new Vector3(8, -8, 0), new Vector2(10, 10), new Color(1f, 0.85f, 0.4f));
+
+        // Create center area - Gray
+        CreateGroundTile("Center", new Vector3(0, 0, 0), new Vector2(8, 8), new Color(0.5f, 0.5f, 0.5f));
+
+        // Add boundaries (invisible walls)
+        CreateBoundary("WallTop", new Vector3(0, 13, 0), new Vector2(30, 1));
+        CreateBoundary("WallBottom", new Vector3(0, -13, 0), new Vector2(30, 1));
+        CreateBoundary("WallLeft", new Vector3(-13, 0, 0), new Vector2(1, 30));
+        CreateBoundary("WallRight", new Vector3(13, 0, 0), new Vector2(1, 30));
+    }
+
+    static void CreateGroundTile(string name, Vector3 position, Vector2 size, Color color)
+    {
+        GameObject tile = new GameObject(name);
+        tile.transform.position = position;
+
+        SpriteRenderer sr = tile.AddComponent<SpriteRenderer>();
+        sr.sprite = SpriteGenerator.CreateSquareSprite(color);
+        sr.sortingOrder = -10; // Behind everything
+        tile.transform.localScale = new Vector3(size.x, size.y, 1);
+    }
+
+    static void CreateBoundary(string name, Vector3 position, Vector2 size)
+    {
+        GameObject boundary = new GameObject(name);
+        boundary.transform.position = position;
+        boundary.layer = LayerMask.NameToLayer("Default");
+
+        BoxCollider2D collider = boundary.AddComponent<BoxCollider2D>();
+        collider.size = size;
+    }
+
+    static void CreateNPC(ExamDomain domain, Vector3 position, string npcName)
+    {
+        GameObject npc = new GameObject($"NPC_{domain}");
+        npc.transform.position = position;
+
+        // Add sprite
+        SpriteRenderer sr = npc.AddComponent<SpriteRenderer>();
+        Color npcColor = GetDomainColor(domain);
+        sr.sprite = SpriteGenerator.CreateCharacterSprite(npcColor);
+        sr.sortingOrder = 5;
+
+        // Add collider
+        CircleCollider2D collider = npc.AddComponent<CircleCollider2D>();
+        collider.radius = 0.5f;
+        collider.isTrigger = false; // Solid, player can't walk through
+
+        // Add NPC script
+        AWSNPC npcScript = npc.AddComponent<AWSNPC>();
+        npcScript.npcName = npcName;
+        npcScript.quizDomain = domain;
+        npcScript.interactionRange = 2f;
+        npcScript.dialogueText = $"Ready to test your {GetDomainDisplayName(domain)} knowledge?";
+    }
+
+    static void Create2DCollectible(ExamDomain domain, Vector3 position)
+    {
+        GameObject collectible = new GameObject($"Badge_{domain}");
+        collectible.transform.position = position;
+
+        // Add sprite
+        SpriteRenderer sr = collectible.AddComponent<SpriteRenderer>();
+        Color badgeColor = GetDomainColor(domain);
+        sr.sprite = SpriteGenerator.CreateCircleSprite(badgeColor);
+        sr.sortingOrder = 2;
+        collectible.transform.localScale = new Vector3(0.6f, 0.6f, 1);
+
+        // Add collider
+        CircleCollider2D collider = collectible.AddComponent<CircleCollider2D>();
+        collider.radius = 0.5f;
+        collider.isTrigger = true;
+
+        // Add collectible script
+        AWSCollectible2D collectibleScript = collectible.AddComponent<AWSCollectible2D>();
+        collectibleScript.domain = domain;
+        collectibleScript.spriteRenderer = sr;
+        collectibleScript.glowColor = badgeColor;
+    }
+
+    static void Create2DWorldUI(WorldManager worldManager)
+    {
+        // Create Canvas
+        GameObject canvasObj = new GameObject("Canvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1280, 720);
+        canvasObj.AddComponent<GraphicRaycaster>();
+
+        // Event System
+        GameObject eventSystem = new GameObject("EventSystem");
+        eventSystem.AddComponent<UnityEngine.EventSystems.EventSystem>();
+        eventSystem.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+
+        // Badge Count Text (top-left)
+        GameObject badgeText = CreateText(canvas.transform, "BadgeCountText", "AWS Badges: 0/12", 28, TextAnchor.UpperLeft);
+        RectTransform badgeRT = badgeText.GetComponent<RectTransform>();
+        badgeRT.anchorMin = new Vector2(0, 1);
+        badgeRT.anchorMax = new Vector2(0, 1);
+        badgeRT.anchoredPosition = new Vector2(20, -20);
+        badgeRT.sizeDelta = new Vector2(400, 60);
+        badgeText.GetComponent<Text>().fontStyle = FontStyle.Bold;
+        badgeText.GetComponent<Text>().fontSize = 24;
+        worldManager.badgeCountText = badgeText.GetComponent<Text>();
+
+        // Instructions Text (top-center)
+        GameObject instructionText = CreateText(canvas.transform, "InstructionText",
+            "Explore the world! Collect AWS badges and talk to NPCs.\n[WASD] Move | [E] Interact",
+            20, TextAnchor.UpperCenter);
+        RectTransform instrRT = instructionText.GetComponent<RectTransform>();
+        instrRT.anchorMin = new Vector2(0.5f, 1);
+        instrRT.anchorMax = new Vector2(0.5f, 1);
+        instrRT.anchoredPosition = new Vector2(0, -60);
+        instrRT.sizeDelta = new Vector2(800, 80);
+        worldManager.instructionText = instructionText.GetComponent<Text>();
+
+        // Create Question Panel (initially hidden)
+        GameObject questionPanel = CreatePanel(canvas.transform, "QuestionPanel");
+        RectTransform panelRT = questionPanel.GetComponent<RectTransform>();
+        panelRT.anchorMin = new Vector2(0.1f, 0.1f);
+        panelRT.anchorMax = new Vector2(0.9f, 0.9f);
+        panelRT.offsetMin = Vector2.zero;
+        panelRT.offsetMax = Vector2.zero;
+        questionPanel.SetActive(false);
+
+        // Add question panel components
+        GameObject questionTextObj = CreateText(questionPanel.transform, "QuestionText", "", 20, TextAnchor.UpperCenter);
+        RectTransform qtRT = questionTextObj.GetComponent<RectTransform>();
+        qtRT.anchorMin = new Vector2(0.05f, 0.6f);
+        qtRT.anchorMax = new Vector2(0.95f, 0.95f);
+        qtRT.offsetMin = Vector2.zero;
+        qtRT.offsetMax = Vector2.zero;
+
+        // Add this question panel to GameManager
+        GameManager gm = GameObject.Find("GameManager")?.GetComponent<GameManager>();
+        if (gm != null)
+        {
+            gm.questionPanel = questionPanel;
+        }
+    }
+
+    static Color GetDomainColor(ExamDomain domain)
+    {
+        switch (domain)
+        {
+            case ExamDomain.CloudConcepts:
+                return new Color(0.3f, 0.6f, 1f); // Sky blue
+            case ExamDomain.SecurityAndCompliance:
+                return new Color(1f, 0.3f, 0.3f); // Red
+            case ExamDomain.Technology:
+                return new Color(0.3f, 1f, 0.4f); // Green
+            case ExamDomain.BillingAndPricing:
+                return new Color(1f, 0.8f, 0.2f); // Gold
+            default:
+                return Color.white;
+        }
+    }
+
+    static void ConfigureBuildSettings2D()
+    {
+        EditorBuildSettingsScene[] scenes = new EditorBuildSettingsScene[]
+        {
+            new EditorBuildSettingsScene("Assets/Scenes/AWSStudyValley.unity", true)
+        };
+
+        EditorBuildSettings.scenes = scenes;
+        Debug.Log("Build settings configured for 2D world");
     }
 }

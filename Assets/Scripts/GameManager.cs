@@ -23,6 +23,10 @@ public class GameManager : MonoBehaviour
     public Text streakText;
     public GameObject questionPanel;
 
+    // Event for quiz completion (used by NPCs in 2D mode)
+    public delegate void QuizCompleteHandler();
+    public event QuizCompleteHandler OnQuizComplete;
+
     private float sessionStartTime;
     private float currentQuestionStartTime;
 
@@ -221,6 +225,9 @@ public class GameManager : MonoBehaviour
         // Re-lock cursor for first-person mode
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // Fire quiz complete event for NPCs in 2D mode
+        OnQuizComplete?.Invoke();
     }
 
     void UnlockCurrentDoor()
