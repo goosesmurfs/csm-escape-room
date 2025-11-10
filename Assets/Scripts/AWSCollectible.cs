@@ -97,6 +97,9 @@ public class AWSCollectible : MonoBehaviour
             glowLight.intensity = 5f;
         }
 
+        // Create particle burst
+        ParticleEffects.CreateCollectionBurst(transform.position, glowColor);
+
         // Notify room manager
         var roomManager = FindObjectOfType<RoomManager>();
         if (roomManager != null)

@@ -442,6 +442,11 @@ public class SceneGenerator : EditorWindow
         GameManager gm = gameManagerObj.AddComponent<GameManager>();
         gm.questionPanel = questionPanel;
 
+        // Add Room Theme Manager for visual enhancements
+        GameObject themeManagerObj = new GameObject("RoomThemeManager");
+        RoomThemeManager themeManager = themeManagerObj.AddComponent<RoomThemeManager>();
+        themeManager.domain = domain;
+
         // Save scene
         string sceneName = $"Assets/Scenes/Room{roomNumber}_{domain}.unity";
         EditorSceneManager.SaveScene(scene, sceneName);
