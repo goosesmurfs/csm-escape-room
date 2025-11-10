@@ -1,165 +1,195 @@
-# ⚡ Quick Start - GitHub Auto-Build
+# Quick Start Guide - One-Click Scene Generation
 
-**Get your game built and deployed in 15 minutes without installing Unity!**
+This guide will get your AWS CCP exam prep game running in **5 minutes** using automated scene generation!
 
 ---
 
-## 🚀 Steps (Copy & Paste Ready)
+## Step 1: Open Unity Project (2 minutes)
 
-### 1. Get Unity License (5 minutes)
+1. Open **Unity Hub**
+2. Click **"Open"** → Navigate to `C:\Users\Goose\CSM_EscapeRoom_Unity`
+3. Wait for Unity to load the project
 
-```
-1. Go to: https://github.com/game-ci/unity-request-activation-file
-2. Click "Use this template"
-3. Create repository
-4. Actions → Run "Acquire activation file"
-5. Download .alf file
-6. Go to: https://license.unity3d.com/manual
-7. Upload .alf → Download .ulf
-8. Open .ulf in Notepad → Copy ALL contents
-```
+---
 
-### 2. Create GitHub Repo (2 minutes)
+## Step 2: Generate Scenes (30 seconds)
 
-```
-1. Go to: https://github.com/new
-2. Name: csm-escape-room
-3. Public repo
-4. Create
-```
+Once Unity Editor is open:
 
-### 3. Add License Secret (1 minute)
+1. In the top menu, click **Tools → Generate AWS CCP Scenes**
+2. Click **"Yes"** in the confirmation dialog
+3. Wait 5-10 seconds
+4. You'll see a success message!
 
-```
-1. Your repo → Settings → Secrets → Actions
-2. New secret
-3. Name: UNITY_LICENSE
-4. Value: Paste .ulf contents
-5. Add secret
-```
+**That's it!** The script automatically creates:
+- ✅ LevelSelect.unity scene with all 6 domain buttons
+- ✅ QuestionScene.unity scene with all UI elements
+- ✅ Configured build settings
+- ✅ Wired up all script references
 
-### 4. Push Code (3 minutes)
+---
 
-Open PowerShell in `C:\Users\Goose\CSM_EscapeRoom_Unity\`:
+## Step 3: Test in Unity (1 minute)
 
-```powershell
-# Replace YOUR_USERNAME with your GitHub username!
+1. In **Project** window → **Assets/Scenes/** → Double-click **LevelSelect.unity**
+2. Click the **Play** button (▶️) at the top
+3. Test the menu:
+   - Enter your name
+   - Click a domain button (e.g., "Cloud Concepts")
+   - Answer some questions
+   - Check if scoring works
 
-git init
+---
+
+## Step 4: Build for WebGL (10-20 minutes)
+
+1. **File → Build Settings**
+2. Select **WebGL** platform
+3. Click **"Switch Platform"** (if not already selected)
+4. Click **"Build"**
+5. Choose folder: `C:\Users\Goose\CSM_EscapeRoom_Unity\WebGLBuild`
+6. Wait for build to complete (~10-20 minutes first time)
+
+---
+
+## Step 5: Deploy to GitHub Pages (2 minutes)
+
+Open PowerShell or Command Prompt:
+
+```bash
+cd C:\Users\Goose\CSM_EscapeRoom_Unity
+
+# Copy WebGL build to docs folder
+xcopy WebGLBuild docs\ /E /I /Y
+
+# Create .nojekyll file
+cd docs
+echo. > .nojekyll
+cd ..
+
+# Commit and push
 git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/YOUR_USERNAME/csm-escape-room.git
-git branch -M main
-git push -u origin main
-```
-
-If it asks for login:
-- Username: your GitHub username
-- Password: create a Personal Access Token at https://github.com/settings/tokens
-
-### 5. Enable GitHub Pages (1 minute)
-
-```
-1. Repo → Settings → Pages
-2. Branch: gh-pages
-3. Save
-```
-
-### 6. Wait for Build (10-15 minutes)
-
-```
-1. Repo → Actions tab
-2. Watch build progress
-3. When green checkmark appears → Done!
+git commit -m "Add automated scene generation and WebGL build"
+git push origin main
 ```
 
 ---
 
-## 🎮 Access Your Game
+## Step 6: Enable GitHub Pages (1 minute)
 
-### Play in Browser
+1. Go to: https://github.com/goosesmurfs/csm-escape-room/settings/pages
+2. **Source**: Deploy from a branch
+3. **Branch**: `main` → **Folder**: `/docs` → Click **Save**
+4. Wait 2-3 minutes for deployment
+
+---
+
+## Your Game is Live! 🎉
+
+**URL**: https://goosesmurfs.github.io/csm-escape-room/
+
+---
+
+## Troubleshooting
+
+### "Generate AWS CCP Scenes" menu item not showing
+
+**Solution**:
+1. Close Unity completely
+2. Reopen the project
+3. Wait for scripts to recompile (watch bottom-right corner)
+4. Try again
+
+### Build errors about missing scenes
+
+**Solution**:
+1. Run the scene generator again (Tools → Generate AWS CCP Scenes)
+2. Check that `Assets/Scenes/` folder contains both .unity files
+
+### WebGL build takes forever
+
+**Normal!** First WebGL build can take 15-20 minutes. Subsequent builds are faster (~5 minutes).
+
+### Game loads but shows errors in browser console
+
+**Solution**:
+1. Make sure `.nojekyll` file exists in `docs/` folder
+2. Clear browser cache (Ctrl+Shift+Delete)
+3. Hard refresh the page (Ctrl+F5)
+
+---
+
+## What the Scene Generator Does
+
+The automated script creates two complete Unity scenes:
+
+### LevelSelect Scene
+- Main menu with 6 domain buttons
+- Player name input field
+- Progress display for each domain
+- Stats panel showing total score and weak areas
+- Leaderboard and Statistics buttons
+- Fully wired GameManager with LevelSelectUI script
+
+### QuestionScene
+- Question display area
+- 4 answer option buttons
+- Feedback panel with explanations
+- Score, streak, and timer displays
+- Domain and difficulty indicators
+- Continue button
+- Fully wired GameManager with QuestionPanel script
+
+All UI elements are positioned, styled, and connected to scripts automatically!
+
+---
+
+## Next Steps
+
+Once deployed online:
+
+1. **Test all features**:
+   - Try all 6 domain modes
+   - Complete a full quiz session
+   - Check progress tracking
+   - Verify leaderboard works
+
+2. **Customize** (optional):
+   - Open scenes in Unity Editor
+   - Adjust colors, fonts, sizes
+   - Add your company logo
+   - Modify question database in `AWSQuestion.cs`
+
+3. **Share with your team**:
+   - Send them the GitHub Pages URL
+   - Watch leaderboard competition heat up!
+   - Track who's ready for the real AWS CCP exam
+
+---
+
+## Files Created by Generator
 
 ```
-https://YOUR_USERNAME.github.io/csm-escape-room/
-```
-
-### Download Builds
-
-```
-1. Actions tab
-2. Click latest workflow
-3. Scroll to Artifacts
-4. Download:
-   - Windows build
-   - Linux build
+Assets/
+├── Scenes/
+│   ├── LevelSelect.unity      ← Main menu scene
+│   └── QuestionScene.unity    ← Quiz scene
+└── Editor/
+    └── SceneGenerator.cs      ← The automation script
 ```
 
 ---
 
-## 🔄 Make Changes
+## Need Help?
 
-```powershell
-# Edit any .cs file
-# Then:
+**Common Issues**:
+- Unity crashes: Close and reopen
+- Build fails: Clear `Library/` folder and rebuild
+- WebGL won't load: Check browser supports WebGL 2.0
 
-git add .
-git commit -m "Your changes"
-git push
-
-# GitHub rebuilds automatically!
-```
+**Still stuck?**
+Check `UNITY_SETUP_GUIDE.md` for manual scene creation steps.
 
 ---
 
-## 📦 Create Release
-
-```powershell
-git tag v1.0.0
-git push origin v1.0.0
-
-# GitHub creates release with downloadable .zip files!
-```
-
----
-
-## ✅ Success Checklist
-
-- [ ] Got .ulf license file
-- [ ] Created GitHub repo
-- [ ] Added UNITY_LICENSE secret
-- [ ] Pushed code
-- [ ] Enabled Pages
-- [ ] Build completed (green checkmark)
-- [ ] Tested game at your GitHub Pages URL
-
----
-
-## 🆘 Quick Troubleshooting
-
-**Build failed?**
-→ Check UNITY_LICENSE secret has full .ulf contents
-
-**Can't push?**
-→ Create Personal Access Token: https://github.com/settings/tokens
-
-**Pages not working?**
-→ Wait 5 minutes after build, check Settings → Pages
-
-**License issues?**
-→ Redo Step 1, make sure you copy ENTIRE .ulf file
-
----
-
-## 🎯 That's It!
-
-You now have:
-✅ Game building automatically
-✅ WebGL version live online
-✅ Windows/Linux downloads
-✅ No Unity install needed!
-
-**Share your game:** `https://YOUR_USERNAME.github.io/csm-escape-room/`
-
----
-
-For detailed setup: See [GITHUB_SETUP.md](GITHUB_SETUP.md)
+**Good luck! Your AWS CCP exam prep game will be live soon!** 🚀
