@@ -1,0 +1,97 @@
+name: Build Unity Project
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+
+jobs:
+  build:
+    name: Build for ${{ matrix.targetPlatform }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        targetPlatform:
+          - StandaloneWindows64
+          - StandaloneLinux64
+          - WebGL
+    steps:
+      # Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      # Cache Unity Library folder
+      - name: Cache Unity Library
+        uses: actions/cache@v3
+        with:
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ matrix.targetPlatform }}-
+            Library-
+
+      # Build Unity Project
+      - name: Build Unity Project
+        uses: game-ci/unity-builder@v2
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: CSM_EscapeRoom
+          buildsPath: builds
+          versioning: Semantic
+
+      # Upload build artifacts
+      - name: Upload Build
+        uses: actions/upload-artifact@v3
+        with:
+          name: Build-${{ matrix.targetPlatform }}
+          path: builds/${{ matrix.targetPlatform }}
+          retention-days: 30
+
+      # Deploy WebGL to GitHub Pages
+      - name: Deploy WebGL to GitHub Pages
+        if: matrix.targetPlatform == 'WebGL' && github.ref == 'refs/heads/main'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: builds/WebGL/CSM_EscapeRoom
+          branch: gh-pages
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download all builds
+        uses: actions/download-artifact@v3
+        with:
+          path: builds
+
+      - name: Zip builds
+        run: |
+          cd builds
+          zip -r CSM_EscapeRoom_Windows.zip Build-StandaloneWindows64/*
+          zip -r CSM_EscapeRoom_Linux.zip Build-StandaloneLinux64/*
+          zip -r CSM_EscapeRoom_WebGL.zip Build-WebGL/*
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            builds/CSM_EscapeRoom_Windows.zip
+            builds/CSM_EscapeRoom_Linux.zip
+            builds/CSM_EscapeRoom_WebGL.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
