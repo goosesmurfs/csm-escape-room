@@ -15,19 +15,30 @@ public class SceneGenerator : EditorWindow
     public static void GenerateAllScenes()
     {
         if (EditorUtility.DisplayDialog("Generate Scenes",
-            "This will create LevelSelect and QuestionScene scenes. Continue?",
+            "This will create LevelSelect, QuestionScene, and 4 Escape Room scenes. Continue?",
             "Yes", "Cancel"))
         {
             CreateScenesFolder();
             CreateLevelSelectScene();
             CreateQuestionScene();
+
+            // Generate escape room scenes
+            CreateEscapeRoomScene(ExamDomain.CloudConcepts, 1, "Cloud Concepts Chamber");
+            CreateEscapeRoomScene(ExamDomain.SecurityAndCompliance, 2, "Security Vault");
+            CreateEscapeRoomScene(ExamDomain.Technology, 3, "Technology Lab");
+            CreateEscapeRoomScene(ExamDomain.BillingAndPricing, 4, "Cost Optimization Room");
+
             ConfigureBuildSettings();
 
             EditorUtility.DisplayDialog("Success",
                 "Scenes generated successfully!\n\n" +
                 "Created:\n" +
                 "- Assets/Scenes/LevelSelect.unity\n" +
-                "- Assets/Scenes/QuestionScene.unity\n\n" +
+                "- Assets/Scenes/QuestionScene.unity\n" +
+                "- Assets/Scenes/Room1_CloudConcepts.unity\n" +
+                "- Assets/Scenes/Room2_Security.unity\n" +
+                "- Assets/Scenes/Room3_Technology.unity\n" +
+                "- Assets/Scenes/Room4_Billing.unity\n\n" +
                 "Build settings configured.\n" +
                 "Ready to build WebGL!",
                 "OK");
@@ -325,17 +336,190 @@ public class SceneGenerator : EditorWindow
         Debug.Log("Created QuestionScene.unity");
     }
 
+    static void CreateEscapeRoomScene(ExamDomain domain, int roomNumber, string roomName)
+    {
+        // Create new scene
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+
+        // Remove default objects
+        foreach (GameObject obj in GameObject.FindObjectsOfType<GameObject>())
+        {
+            if (obj.transform.parent == null)
+            {
+                GameObject.DestroyImmediate(obj);
+            }
+        }
+
+        // Create Player
+        GameObject player = new GameObject("Player");
+        player.tag = "Player";
+        player.transform.position = new Vector3(0, 1, -8);
+
+        CharacterController cc = player.AddComponent<CharacterController>();
+        cc.center = new Vector3(0, 1, 0);
+        cc.radius = 0.5f;
+        cc.height = 2f;
+
+        FirstPersonController fpc = player.AddComponent<FirstPersonController>();
+
+        GameObject camera = new GameObject("Main Camera");
+        camera.tag = "MainCamera";
+        camera.transform.SetParent(player.transform);
+        camera.transform.localPosition = new Vector3(0, 0.6f, 0);
+        camera.AddComponent<Camera>();
+        camera.AddComponent<AudioListener>();
+
+        GameObject groundCheck = new GameObject("GroundCheck");
+        groundCheck.transform.SetParent(player.transform);
+        groundCheck.transform.localPosition = new Vector3(0, -1, 0);
+        fpc.groundCheck = groundCheck.transform;
+
+        // Create Room (floor, walls, ceiling)
+        CreateRoomGeometry(domain);
+
+        // Create Collectibles (3 per room)
+        CreateCollectible(domain, new Vector3(-5, 1, 0));
+        CreateCollectible(domain, new Vector3(5, 1, 0));
+        CreateCollectible(domain, new Vector3(0, 1, 5));
+
+        // Create Door
+        GameObject doorObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        doorObj.name = "ExitDoor";
+        doorObj.transform.position = new Vector3(0, 1.5f, 9.5f);
+        doorObj.transform.localScale = new Vector3(2, 3, 0.2f);
+
+        AWSDoor door = doorObj.AddComponent<AWSDoor>();
+        door.domain = domain;
+
+        Light doorLight = doorObj.AddComponent<Light>();
+        doorLight.type = LightType.Spot;
+        doorLight.range = 5f;
+        door.doorLight = doorLight;
+
+        // Create Room Manager
+        GameObject roomManagerObj = new GameObject("RoomManager");
+        RoomManager roomManager = roomManagerObj.AddComponent<RoomManager>();
+        roomManager.roomNumber = roomNumber;
+        roomManager.roomDomain = domain;
+        roomManager.roomName = roomName;
+        roomManager.exitDoor = door;
+
+        // Create UI Canvas
+        GameObject canvasObj = new GameObject("Canvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvasObj.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        canvasObj.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1280, 720);
+        canvasObj.AddComponent<GraphicRaycaster>();
+
+        // Add EventSystem
+        GameObject eventSystem = new GameObject("EventSystem");
+        eventSystem.AddComponent<UnityEngine.EventSystems.EventSystem>();
+        eventSystem.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+
+        // Create UI elements
+        GameObject collectiblesText = CreateText(canvas.transform, "CollectiblesText", "AWS Badges: 0/3", 24, TextAnchor.UpperLeft);
+        collectiblesText.GetComponent<RectTransform>().anchoredPosition = new Vector2(20, -20);
+        collectiblesText.GetComponent<RectTransform>().sizeDelta = new Vector2(300, 50);
+        roomManager.collectiblesText = collectiblesText.GetComponent<Text>();
+
+        GameObject roomTitleText = CreateText(canvas.transform, "RoomTitleText", roomName, 32, TextAnchor.UpperCenter);
+        roomTitleText.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -30);
+        roomTitleText.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 60);
+        roomManager.roomTitleText = roomTitleText.GetComponent<Text>();
+
+        // Create Question Panel (same as QuestionScene but initially hidden)
+        GameObject questionPanel = CreatePanel(canvas.transform, "QuestionPanel");
+        RectTransform panelRT = questionPanel.GetComponent<RectTransform>();
+        panelRT.anchorMin = new Vector2(0.1f, 0.1f);
+        panelRT.anchorMax = new Vector2(0.9f, 0.9f);
+        panelRT.offsetMin = Vector2.zero;
+        panelRT.offsetMax = Vector2.zero;
+        questionPanel.SetActive(false);
+
+        // Add GameManager
+        GameObject gameManagerObj = new GameObject("GameManager");
+        GameManager gm = gameManagerObj.AddComponent<GameManager>();
+        gm.questionPanel = questionPanel;
+
+        // Save scene
+        string sceneName = $"Assets/Scenes/Room{roomNumber}_{domain}.unity";
+        EditorSceneManager.SaveScene(scene, sceneName);
+        Debug.Log($"Created {sceneName}");
+    }
+
+    static void CreateRoomGeometry(ExamDomain domain)
+    {
+        // Floor
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        floor.name = "Floor";
+        floor.transform.position = new Vector3(0, -0.1f, 0);
+        floor.transform.localScale = new Vector3(20, 0.2f, 20);
+
+        // Ceiling
+        GameObject ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        ceiling.name = "Ceiling";
+        ceiling.transform.position = new Vector3(0, 4.1f, 0);
+        ceiling.transform.localScale = new Vector3(20, 0.2f, 20);
+
+        // Walls
+        GameObject wallN = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wallN.name = "Wall_North";
+        wallN.transform.position = new Vector3(0, 2, 10);
+        wallN.transform.localScale = new Vector3(20, 4, 0.2f);
+
+        GameObject wallS = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wallS.name = "Wall_South";
+        wallS.transform.position = new Vector3(0, 2, -10);
+        wallS.transform.localScale = new Vector3(20, 4, 0.2f);
+
+        GameObject wallE = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wallE.name = "Wall_East";
+        wallE.transform.position = new Vector3(10, 2, 0);
+        wallE.transform.localScale = new Vector3(0.2f, 4, 20);
+
+        GameObject wallW = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wallW.name = "Wall_West";
+        wallW.transform.position = new Vector3(-10, 2, 0);
+        wallW.transform.localScale = new Vector3(0.2f, 4, 20);
+
+        // Directional Light
+        GameObject lightObj = new GameObject("Directional Light");
+        lightObj.transform.rotation = Quaternion.Euler(50, -30, 0);
+        Light light = lightObj.AddComponent<Light>();
+        light.type = LightType.Directional;
+        light.intensity = 1f;
+    }
+
+    static void CreateCollectible(ExamDomain domain, Vector3 position)
+    {
+        GameObject collectible = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        collectible.name = $"Collectible_{domain}";
+        collectible.transform.position = position;
+        collectible.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+
+        AWSCollectible awsCollectible = collectible.AddComponent<AWSCollectible>();
+        awsCollectible.domain = domain;
+
+        SphereCollider collider = collectible.GetComponent<SphereCollider>();
+        collider.isTrigger = true;
+    }
+
     static void ConfigureBuildSettings()
     {
-        // Add scenes to build settings
+        // Add all scenes to build settings
         EditorBuildSettingsScene[] scenes = new EditorBuildSettingsScene[]
         {
             new EditorBuildSettingsScene("Assets/Scenes/LevelSelect.unity", true),
+            new EditorBuildSettingsScene("Assets/Scenes/Room1_CloudConcepts.unity", true),
+            new EditorBuildSettingsScene("Assets/Scenes/Room2_SecurityAndCompliance.unity", true),
+            new EditorBuildSettingsScene("Assets/Scenes/Room3_Technology.unity", true),
+            new EditorBuildSettingsScene("Assets/Scenes/Room4_BillingAndPricing.unity", true),
             new EditorBuildSettingsScene("Assets/Scenes/QuestionScene.unity", true)
         };
 
         EditorBuildSettings.scenes = scenes;
-        Debug.Log("Build settings configured with LevelSelect and QuestionScene");
+        Debug.Log("Build settings configured with all scenes");
     }
 
     // Helper methods for UI creation
