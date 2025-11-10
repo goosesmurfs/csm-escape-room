@@ -42,7 +42,10 @@ jobs:
 
       # Build Unity Project
       - name: Build Unity Project
-        uses: game-ci/unity-builder@v2
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
           buildName: CSM_EscapeRoom
