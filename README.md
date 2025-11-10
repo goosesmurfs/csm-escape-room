@@ -1,19 +1,40 @@
-# 🎮 CSM Escape Room - Unity Edition
+# AWS Cloud Practitioner Exam Prep Game
 
-A professional 3D escape room game built in Unity for learning Certified Scrum Master concepts.
+A gamified, interactive learning platform for AWS Certified Cloud Practitioner (CCP) exam preparation built with Unity 3D.
 
 ---
 
 ## ✨ Features
 
-✅ **Professional Unity Build** - Industry-standard game engine
-✅ **First-Person 3D** - WASD + Mouse controls
-✅ **5 Themed Rooms** - Each testing different CSM topics
-✅ **Collectible System** - Find artifacts before answering
-✅ **Interactive Questions** - Full UI with feedback
-✅ **Cross-Platform** - Build for Windows, Mac, Linux, WebGL
-✅ **Fully Customizable** - Easy to add rooms/questions
-✅ **Production Ready** - Can be deployed to web or desktop
+### Core Gameplay
+✅ **6 Exam Domains** - Practice questions organized by official AWS CCP exam domains
+- Cloud Concepts (26% of exam)
+- Security & Compliance (25% of exam)
+- Technology (33% of exam)
+- Billing & Pricing (16% of exam)
+- Mixed Challenge Mode
+- Full Practice Exam (Boss Level)
+
+✅ **Real Practice Questions** - Includes practice questions that mirror actual AWS CCP exam format
+✅ **Instant Feedback** - Detailed explanations for every answer
+✅ **Progress Tracking** - Track performance by domain and identify weak areas
+✅ **Gamification Elements**:
+- Points system with streak bonuses
+- Time-based bonus points
+- Achievement badges
+- Pass/Fail thresholds (70% to pass)
+
+### Analytics Dashboard
+✅ Overall accuracy and time metrics
+✅ Domain-specific performance breakdown
+✅ Weak area identification
+✅ Personalized recommendations
+✅ Visual progress bars
+
+### Leaderboard System
+✅ Track your rank against other players
+✅ Compare scores with coworkers/friends
+✅ Local leaderboard with backend API support
 
 ---
 

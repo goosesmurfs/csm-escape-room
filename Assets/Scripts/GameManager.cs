@@ -1,35 +1,30 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
+using System.Linq;
 
 /// <summary>
-/// Main game manager - controls game state, scoring, and room progression
+/// Main game manager - controls game state, scoring, and level progression for AWS CCP exam prep
 /// </summary>
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    [Header("Game State")]
-    public int currentRoom = 0;
-    public int totalScore = 0;
-    public int totalQuestions = 0;
-    public int collectiblesFound = 0;
-    public int requiredCollectibles = 3;
+    [Header("Player Progress")]
+    public PlayerProgress playerProgress;
+    public GameSession currentSession;
 
     [Header("UI References")]
-    public Text roomText;
+    public Text domainText;
     public Text scoreText;
-    public Text collectiblesText;
-    public Text interactPromptText;
+    public Text progressText;
+    public Text timerText;
+    public Text streakText;
     public GameObject questionPanel;
 
-    [Header("Room Prefabs")]
-    public GameObject[] roomPrefabs;
-
-    [Header("Player")]
-    public Transform playerTransform;
-
-    private List<GameObject> currentRoomObjects = new List<GameObject>();
+    private float sessionStartTime;
+    private float currentQuestionStartTime;
 
     void Awake()
     {
@@ -38,6 +33,8 @@ public class GameManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            LoadPlayerProgress();
+            AWSQuestionDatabase.Initialize();
         }
         else
         {
@@ -47,134 +44,344 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        BuildRoom(currentRoom);
         UpdateUI();
     }
 
-    public void BuildRoom(int roomIndex)
+    void Update()
     {
-        // Clear previous room
-        foreach (var obj in currentRoomObjects)
+        // Update timer if in session
+        if (currentSession != null && !currentSession.IsSessionComplete())
         {
-            Destroy(obj);
-        }
-        currentRoomObjects.Clear();
-
-        // Reset collectibles
-        collectiblesFound = 0;
-
-        // Create new room
-        if (roomIndex < roomPrefabs.Length && roomPrefabs[roomIndex] != null)
-        {
-            Vector3 spawnPos = new Vector3(0, 0, roomIndex * 50);
-            GameObject room = Instantiate(roomPrefabs[roomIndex], spawnPos, Quaternion.identity);
-            currentRoomObjects.Add(room);
-        }
-
-        UpdateUI();
-    }
-
-    public void CollectArtifact()
-    {
-        collectiblesFound++;
-        UpdateUI();
-
-        if (collectiblesFound >= requiredCollectibles)
-        {
-            ShowMessage("All artifacts collected! Find the door!");
-        }
-    }
-
-    public void AnswerQuestion(bool correct)
-    {
-        totalQuestions++;
-        if (correct)
-        {
-            totalScore++;
-        }
-        UpdateUI();
-    }
-
-    public void AdvanceRoom()
-    {
-        currentRoom++;
-
-        if (currentRoom < 5)
-        {
-            // Move player to next room
-            if (playerTransform != null)
+            float elapsed = Time.time - currentQuestionStartTime;
+            if (timerText != null)
             {
-                playerTransform.position = new Vector3(0, 2, currentRoom * 50 + 10);
+                timerText.text = $"Time: {elapsed:F1}s";
             }
+        }
+    }
 
-            BuildRoom(currentRoom);
-            ShowMessage($"Entering Room {currentRoom + 1}!");
+    void LoadPlayerProgress()
+    {
+        string savedData = PlayerPrefs.GetString("PlayerProgress", "");
+        if (!string.IsNullOrEmpty(savedData))
+        {
+            playerProgress = JsonUtility.FromJson<PlayerProgress>(savedData);
         }
         else
         {
-            ShowVictory();
+            playerProgress = new PlayerProgress();
         }
+    }
+
+    public void SavePlayerProgress()
+    {
+        string json = JsonUtility.ToJson(playerProgress);
+        PlayerPrefs.SetString("PlayerProgress", json);
+        PlayerPrefs.Save();
+    }
+
+    public void StartLevel(ExamDomain domain)
+    {
+        currentSession = new GameSession(domain);
+        sessionStartTime = Time.time;
+        currentQuestionStartTime = Time.time;
+
+        // Load question scene if needed
+        if (SceneManager.GetActiveScene().name != "QuestionScene")
+        {
+            SceneManager.LoadScene("QuestionScene");
+        }
+
+        UpdateUI();
+        ShowNextQuestion();
+    }
+
+    public void ShowNextQuestion()
+    {
+        if (currentSession == null || currentSession.IsSessionComplete())
+        {
+            EndSession();
+            return;
+        }
+
+        currentQuestionStartTime = Time.time;
+        AWSQuestion question = currentSession.GetCurrentQuestion();
+
+        if (question != null && questionPanel != null)
+        {
+            var panel = questionPanel.GetComponent<QuestionPanel>();
+            if (panel != null)
+            {
+                panel.ShowAWSQuestion(question, OnQuestionAnswered);
+            }
+        }
+
+        UpdateUI();
+    }
+
+    void OnQuestionAnswered(bool correct, float timeSpent)
+    {
+        if (currentSession == null) return;
+
+        // Update session stats
+        if (correct)
+        {
+            currentSession.correctAnswersInSession++;
+            currentSession.consecutiveCorrect++;
+
+            // Calculate points with streak bonus
+            int basePoints = 100;
+            int streakBonus = currentSession.consecutiveCorrect > 1 ? (currentSession.consecutiveCorrect - 1) * 10 : 0;
+            int timeBonus = timeSpent < 10f ? 20 : timeSpent < 20f ? 10 : 0;
+            int totalPoints = basePoints + streakBonus + timeBonus;
+
+            playerProgress.totalScore += totalPoints;
+        }
+        else
+        {
+            currentSession.consecutiveCorrect = 0;
+        }
+
+        // Update domain progress
+        ExamDomain domain = currentSession.domain;
+        if (!playerProgress.domainProgress.ContainsKey(domain))
+        {
+            playerProgress.domainProgress[domain] = new DomainProgress();
+        }
+
+        var domainProg = playerProgress.domainProgress[domain];
+        domainProg.questionsAnswered++;
+        if (correct)
+        {
+            domainProg.correctAnswers++;
+        }
+        else
+        {
+            domainProg.wrongAnswers++;
+        }
+
+        // Update average time
+        float totalTime = domainProg.averageTimePerQuestion * (domainProg.questionsAnswered - 1) + timeSpent;
+        domainProg.averageTimePerQuestion = totalTime / domainProg.questionsAnswered;
+
+        // Move to next question
+        currentSession.currentQuestionIndex++;
+        currentSession.totalTimeSpent += timeSpent;
+
+        SavePlayerProgress();
+    }
+
+    void EndSession()
+    {
+        if (currentSession == null) return;
+
+        // Mark level as completed if high score
+        ExamDomain domain = currentSession.domain;
+        float accuracy = currentSession.GetAccuracyPercentage();
+
+        if (accuracy >= 70f && playerProgress.domainProgress.ContainsKey(domain))
+        {
+            playerProgress.domainProgress[domain].levelCompleted = true;
+        }
+
+        // Show results
+        ShowSessionResults();
+
+        SavePlayerProgress();
+        currentSession = null;
+    }
+
+    void ShowSessionResults()
+    {
+        if (currentSession == null) return;
+
+        float accuracy = currentSession.GetAccuracyPercentage();
+        int totalQuestions = currentSession.questions.Count;
+        int correct = currentSession.correctAnswersInSession;
+        float avgTime = currentSession.totalTimeSpent / totalQuestions;
+
+        string rating = accuracy >= 90f ? "EXCELLENT!" : accuracy >= 75f ? "VERY GOOD!" : accuracy >= 70f ? "PASSING" : "NEEDS IMPROVEMENT";
+        string passStatus = accuracy >= 70f ? "PASSED" : "FAILED";
+
+        string message = $"{passStatus}\n\n" +
+                        $"Score: {correct}/{totalQuestions} ({accuracy:F1}%)\n" +
+                        $"Rating: {rating}\n" +
+                        $"Avg Time: {avgTime:F1}s per question\n" +
+                        $"Total Time: {currentSession.totalTimeSpent:F0}s\n\n" +
+                        $"Points Earned: {playerProgress.totalScore}";
+
+        Debug.Log(message);
+
+        // Return to level select after delay
+        Invoke("ReturnToLevelSelect", 5f);
+    }
+
+    void ReturnToLevelSelect()
+    {
+        SceneManager.LoadScene("LevelSelect");
     }
 
     public void UpdateUI()
     {
-        string[] roomNames = { "Foundation", "Guardians", "Ceremony", "Artifacts", "Mastery" };
+        if (currentSession == null) return;
 
-        if (roomText != null)
+        // Domain name
+        if (domainText != null)
         {
-            roomText.text = $"Room {currentRoom + 1}/5: {roomNames[currentRoom]}";
+            string domainName = GetDomainDisplayName(currentSession.domain);
+            int current = currentSession.currentQuestionIndex + 1;
+            int total = currentSession.questions.Count;
+            domainText.text = $"{domainName} - Question {current}/{total}";
         }
 
+        // Score
         if (scoreText != null)
         {
-            float percentage = totalQuestions > 0 ? (float)totalScore / totalQuestions * 100 : 0;
-            scoreText.text = $"Score: {totalScore}/{totalQuestions} ({percentage:F0}%)";
+            float accuracy = currentSession.GetAccuracyPercentage();
+            scoreText.text = $"Score: {currentSession.correctAnswersInSession}/{currentSession.currentQuestionIndex} ({accuracy:F0}%)";
         }
 
-        if (collectiblesText != null)
+        // Streak
+        if (streakText != null && currentSession.consecutiveCorrect > 1)
         {
-            collectiblesText.text = $"Artifacts: {collectiblesFound}/{requiredCollectibles}";
+            streakText.text = $"🔥 {currentSession.consecutiveCorrect} Streak!";
+            streakText.gameObject.SetActive(true);
+        }
+        else if (streakText != null)
+        {
+            streakText.gameObject.SetActive(false);
+        }
+
+        // Progress bar
+        if (progressText != null)
+        {
+            int totalCompleted = playerProgress.domainProgress.Values.Sum(d => d.questionsAnswered);
+            progressText.text = $"Total Questions: {totalCompleted}";
         }
     }
 
-    public void ShowMessage(string message, float duration = 2f)
+    string GetDomainDisplayName(ExamDomain domain)
     {
-        if (interactPromptText != null)
+        switch (domain)
         {
-            interactPromptText.text = message;
-            interactPromptText.gameObject.SetActive(true);
-            Invoke("HideMessage", duration);
+            case ExamDomain.CloudConcepts:
+                return "Cloud Concepts";
+            case ExamDomain.SecurityAndCompliance:
+                return "Security & Compliance";
+            case ExamDomain.Technology:
+                return "Technology";
+            case ExamDomain.BillingAndPricing:
+                return "Billing & Pricing";
+            case ExamDomain.MixedChallenge:
+                return "Mixed Challenge";
+            case ExamDomain.FullPracticeExam:
+                return "Full Practice Exam";
+            default:
+                return "AWS CCP Prep";
         }
     }
 
-    void HideMessage()
+    public DomainProgress GetDomainProgress(ExamDomain domain)
     {
-        if (interactPromptText != null)
+        if (playerProgress.domainProgress.ContainsKey(domain))
         {
-            interactPromptText.gameObject.SetActive(false);
+            return playerProgress.domainProgress[domain];
         }
+        return new DomainProgress();
     }
 
-    void ShowVictory()
+    public List<ExamDomain> GetWeakDomains()
     {
-        float percentage = totalQuestions > 0 ? (float)totalScore / totalQuestions * 100 : 0;
-        string rating = percentage >= 90 ? "PERFECT!" : percentage >= 75 ? "EXCELLENT!" : "GOOD!";
+        List<ExamDomain> weakDomains = new List<ExamDomain>();
 
-        ShowMessage($"🎉 VICTORY! 🎉\nScore: {totalScore}/{totalQuestions} ({percentage:F1}%)\n{rating}", 10f);
-
-        // Disable player movement
-        var playerController = FindObjectOfType<PlayerController>();
-        if (playerController != null)
+        foreach (var kvp in playerProgress.domainProgress)
         {
-            playerController.enabled = false;
+            if (kvp.Value.questionsAnswered >= 5 && kvp.Value.GetAccuracyPercentage() < 70f)
+            {
+                weakDomains.Add(kvp.Key);
+            }
         }
 
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        return weakDomains;
+    }
+}
+
+/// <summary>
+/// Tracks player's overall progress
+/// </summary>
+[System.Serializable]
+public class PlayerProgress
+{
+    public string playerName = "Player";
+    public int totalScore = 0;
+    public Dictionary<ExamDomain, DomainProgress> domainProgress = new Dictionary<ExamDomain, DomainProgress>();
+
+    public PlayerProgress()
+    {
+        // Initialize domain progress for all domains
+        foreach (ExamDomain domain in System.Enum.GetValues(typeof(ExamDomain)))
+        {
+            if (domain != ExamDomain.MixedChallenge && domain != ExamDomain.FullPracticeExam)
+            {
+                domainProgress[domain] = new DomainProgress();
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Tracks progress for a specific exam domain
+/// </summary>
+[System.Serializable]
+public class DomainProgress
+{
+    public int questionsAnswered = 0;
+    public int correctAnswers = 0;
+    public int wrongAnswers = 0;
+    public float averageTimePerQuestion = 0f;
+    public bool levelCompleted = false;
+
+    public float GetAccuracyPercentage()
+    {
+        if (questionsAnswered == 0) return 0f;
+        return (correctAnswers / (float)questionsAnswered) * 100f;
+    }
+}
+
+/// <summary>
+/// Represents a single game session
+/// </summary>
+[System.Serializable]
+public class GameSession
+{
+    public ExamDomain domain;
+    public List<AWSQuestion> questions;
+    public int currentQuestionIndex = 0;
+    public int correctAnswersInSession = 0;
+    public int consecutiveCorrect = 0;
+    public float totalTimeSpent = 0f;
+
+    public GameSession(ExamDomain domain)
+    {
+        this.domain = domain;
+        this.questions = AWSQuestionDatabase.GetQuestionsForDomain(domain);
     }
 
-    public bool CanAnswerQuestions()
+    public AWSQuestion GetCurrentQuestion()
     {
-        return collectiblesFound >= requiredCollectibles;
+        if (currentQuestionIndex < questions.Count)
+            return questions[currentQuestionIndex];
+        return null;
+    }
+
+    public bool IsSessionComplete()
+    {
+        return currentQuestionIndex >= questions.Count;
+    }
+
+    public float GetAccuracyPercentage()
+    {
+        if (currentQuestionIndex == 0) return 0f;
+        return (correctAnswersInSession / (float)currentQuestionIndex) * 100f;
     }
 }

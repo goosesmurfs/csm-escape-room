@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using System;
 
 /// <summary>
-/// UI Panel for displaying questions and handling answers
+/// UI Panel for displaying AWS CCP questions and handling answers
 /// </summary>
 public class QuestionPanel : MonoBehaviour
 {
@@ -14,10 +14,13 @@ public class QuestionPanel : MonoBehaviour
     public Text feedbackText;
     public Button continueButton;
     public Slider progressBar;
+    public Text difficultyText;
+    public Text domainTagText;
 
-    private CSMQuestion currentQuestion;
-    private Action<bool> onAnswerCallback;
+    private AWSQuestion currentQuestion;
+    private Action<bool, float> onAnswerCallback;
     private bool answered = false;
+    private float questionStartTime;
 
     void Start()
     {
@@ -51,11 +54,12 @@ public class QuestionPanel : MonoBehaviour
         }
     }
 
-    public void ShowQuestion(CSMQuestion question, Action<bool> callback)
+    public void ShowAWSQuestion(AWSQuestion question, Action<bool, float> callback)
     {
         currentQuestion = question;
         onAnswerCallback = callback;
         answered = false;
+        questionStartTime = Time.time;
 
         // Show panel
         if (panel != null)
@@ -69,17 +73,38 @@ public class QuestionPanel : MonoBehaviour
             questionText.text = question.question;
         }
 
+        // Set difficulty indicator
+        if (difficultyText != null)
+        {
+            string diffColor = question.difficulty == DifficultyLevel.Easy ? "#4CAF50" :
+                              question.difficulty == DifficultyLevel.Medium ? "#FF9800" : "#F44336";
+            difficultyText.text = $"<color={diffColor}>{question.difficulty}</color>";
+        }
+
+        // Set domain tag
+        if (domainTagText != null && question.tags != null && question.tags.Length > 0)
+        {
+            domainTagText.text = string.Join(", ", question.tags);
+        }
+
         // Set options
         for (int i = 0; i < optionButtons.Length && i < question.options.Length; i++)
         {
             optionButtons[i].GetComponentInChildren<Text>().text = question.options[i];
             optionButtons[i].interactable = true;
+            optionButtons[i].gameObject.SetActive(true);
 
             // Reset colors
             var colors = optionButtons[i].colors;
             colors.normalColor = new Color(0.17f, 0.24f, 0.31f);
             colors.highlightedColor = new Color(0.2f, 0.29f, 0.37f);
             optionButtons[i].colors = colors;
+        }
+
+        // Hide extra buttons if question has fewer options
+        for (int i = question.options.Length; i < optionButtons.Length; i++)
+        {
+            optionButtons[i].gameObject.SetActive(false);
         }
 
         // Hide feedback
@@ -103,13 +128,8 @@ public class QuestionPanel : MonoBehaviour
         if (answered) return;
 
         answered = true;
+        float timeSpent = Time.time - questionStartTime;
         bool correct = selectedIndex == currentQuestion.correctIndex;
-
-        // Update game manager
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.AnswerQuestion(correct);
-        }
 
         // Disable all buttons and color them
         for (int i = 0; i < optionButtons.Length; i++)
@@ -138,7 +158,8 @@ public class QuestionPanel : MonoBehaviour
         if (feedbackText != null)
         {
             string prefix = correct ? "✓ CORRECT!\n\n" : "✗ INCORRECT\n\n";
-            feedbackText.text = prefix + currentQuestion.explanation;
+            string timeInfo = $"\n\nTime: {timeSpent:F1}s";
+            feedbackText.text = prefix + currentQuestion.explanation + timeInfo;
             feedbackText.color = correct ? new Color(0.15f, 0.8f, 0.38f) : new Color(0.91f, 0.3f, 0.24f);
             feedbackText.gameObject.SetActive(true);
         }
@@ -149,10 +170,10 @@ public class QuestionPanel : MonoBehaviour
             continueButton.gameObject.SetActive(true);
         }
 
-        // Callback
+        // Callback with time spent
         if (onAnswerCallback != null)
         {
-            onAnswerCallback(correct);
+            onAnswerCallback(correct, timeSpent);
         }
     }
 
@@ -163,8 +184,10 @@ public class QuestionPanel : MonoBehaviour
             panel.SetActive(false);
         }
 
-        // Lock cursor again
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Show next question
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ShowNextQuestion();
+        }
     }
 }
