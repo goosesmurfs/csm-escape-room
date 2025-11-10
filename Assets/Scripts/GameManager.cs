@@ -86,14 +86,14 @@ public class GameManager : MonoBehaviour
         sessionStartTime = Time.time;
         currentQuestionStartTime = Time.time;
 
-        // Load question scene if needed
-        if (SceneManager.GetActiveScene().name != "QuestionScene")
-        {
-            SceneManager.LoadScene("QuestionScene");
-        }
-
+        // For escape room mode, just show question panel overlay
+        // Don't load new scene - keep player in 3D environment
         UpdateUI();
         ShowNextQuestion();
+
+        // Hide cursor and lock for quiz
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     public void ShowNextQuestion()
@@ -212,13 +212,34 @@ public class GameManager : MonoBehaviour
 
         Debug.Log(message);
 
-        // Return to level select after delay
-        Invoke("ReturnToLevelSelect", 5f);
+        // For escape room mode, unlock the door if passed
+        if (accuracy >= 70f)
+        {
+            UnlockCurrentDoor();
+        }
+
+        // Re-lock cursor for first-person mode
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    void UnlockCurrentDoor()
+    {
+        // Find the door for current session's domain
+        var door = FindObjectOfType<AWSDoor>();
+        if (door != null && door.domain == currentSession.domain)
+        {
+            door.CompleteQuiz();
+        }
     }
 
     void ReturnToLevelSelect()
     {
-        SceneManager.LoadScene("LevelSelect");
+        // Only load level select if we're in standalone quiz mode
+        if (SceneManager.GetActiveScene().name == "QuestionScene")
+        {
+            SceneManager.LoadScene("LevelSelect");
+        }
     }
 
     public void UpdateUI()
