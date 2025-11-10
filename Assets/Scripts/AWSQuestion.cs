@@ -73,7 +73,11 @@ public static class AWSQuestionDatabase
         // Domain 4: Billing and Pricing (16% of exam)
         AddBillingQuestions();
 
+        // Add expanded question database (145+ additional questions)
+        AWSQuestionExpanded.AddExpandedQuestions(allQuestions);
+
         initialized = true;
+        UnityEngine.Debug.Log($"[AWSQuestionDatabase] Initialized with {allQuestions.Count} total questions");
     }
 
     private static void AddCloudConceptsQuestions()

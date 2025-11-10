@@ -340,12 +340,19 @@ public class GameManager : MonoBehaviour
 [System.Serializable]
 public class PlayerProgress
 {
+    public static PlayerProgress Instance { get; private set; }
+
     public string playerName = "Player";
     public int totalScore = 0;
+    public int experiencePoints = 0;
+    public int level = 1;
+    public List<string> badgesEarned = new List<string>();
     public Dictionary<ExamDomain, DomainProgress> domainProgress = new Dictionary<ExamDomain, DomainProgress>();
 
     public PlayerProgress()
     {
+        Instance = this;
+
         // Initialize domain progress for all domains
         foreach (ExamDomain domain in System.Enum.GetValues(typeof(ExamDomain)))
         {
@@ -354,6 +361,83 @@ public class PlayerProgress
                 domainProgress[domain] = new DomainProgress();
             }
         }
+    }
+
+    public void AddExperience(int xp)
+    {
+        experiencePoints += xp;
+        CheckLevelUp();
+    }
+
+    private void CheckLevelUp()
+    {
+        int requiredXP = GetXPForNextLevel();
+        while (experiencePoints >= requiredXP)
+        {
+            level++;
+            experiencePoints -= requiredXP;
+            Debug.Log($"[PlayerProgress] Level up! Now level {level}");
+            requiredXP = GetXPForNextLevel();
+        }
+    }
+
+    public int GetXPForNextLevel()
+    {
+        // Progressive XP requirement: 100 * level
+        return 100 * level;
+    }
+
+    public float GetLevelProgress()
+    {
+        int requiredXP = GetXPForNextLevel();
+        return requiredXP > 0 ? (float)experiencePoints / requiredXP * 100f : 0f;
+    }
+
+    public void AwardBadge(string badgeName)
+    {
+        if (!badgesEarned.Contains(badgeName))
+        {
+            badgesEarned.Add(badgeName);
+            Debug.Log($"[PlayerProgress] Badge earned: {badgeName}");
+        }
+    }
+
+    public bool HasBadge(string badgeName)
+    {
+        return badgesEarned.Contains(badgeName);
+    }
+
+    public int GetTotalBadges()
+    {
+        return badgesEarned.Count;
+    }
+
+    public float GetCertificationReadiness()
+    {
+        // Calculate readiness based on multiple factors
+        float domainReadiness = 0f;
+        int domainsCompleted = 0;
+
+        foreach (var kvp in domainProgress)
+        {
+            if (kvp.Value.questionsAnswered >= 10)
+            {
+                float accuracy = kvp.Value.GetAccuracyPercentage();
+                domainReadiness += accuracy;
+                domainsCompleted++;
+            }
+        }
+
+        if (domainsCompleted == 0) return 0f;
+
+        domainReadiness /= domainsCompleted;
+
+        // Factor in level and badges
+        float levelBonus = Mathf.Min(level * 2f, 20f);  // Max 20% from level
+        float badgeBonus = Mathf.Min(badgesEarned.Count * 0.5f, 10f);  // Max 10% from badges
+
+        float totalReadiness = domainReadiness * 0.7f + levelBonus + badgeBonus;
+        return Mathf.Clamp(totalReadiness, 0f, 100f);
     }
 }
 
