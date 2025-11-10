@@ -298,10 +298,11 @@ public class SceneGenerator : EditorWindow
 
         // Create GameManager
         GameObject gameManager = new GameObject("GameManager");
-        gameManager.AddComponent<GameManager>();
+        GameManager gmScript = gameManager.AddComponent<GameManager>();
         QuestionPanel questionPanelScript = gameManager.AddComponent<QuestionPanel>();
 
-        // Wire up references
+        // Wire up QuestionPanel references
+        questionPanelScript.panel = questionPanel;
         questionPanelScript.questionText = questionTextObj.GetComponent<Text>();
         questionPanelScript.optionButtons = new Button[4];
         for (int i = 0; i < 4; i++)
@@ -310,11 +311,14 @@ public class SceneGenerator : EditorWindow
         }
         questionPanelScript.feedbackText = feedbackTextObj.GetComponent<Text>();
         questionPanelScript.continueButton = continueBtn.GetComponent<Button>();
-        questionPanelScript.domainText = domainText.GetComponent<Text>();
-        questionPanelScript.scoreText = scoreText.GetComponent<Text>();
-        questionPanelScript.timerText = timerText.GetComponent<Text>();
-        questionPanelScript.streakText = streakText.GetComponent<Text>();
         questionPanelScript.difficultyText = difficultyText.GetComponent<Text>();
+
+        // Wire up GameManager references
+        gmScript.domainText = domainText.GetComponent<Text>();
+        gmScript.scoreText = scoreText.GetComponent<Text>();
+        gmScript.timerText = timerText.GetComponent<Text>();
+        gmScript.streakText = streakText.GetComponent<Text>();
+        gmScript.questionPanel = questionPanel;
 
         // Save scene
         EditorSceneManager.SaveScene(scene, "Assets/Scenes/QuestionScene.unity");
